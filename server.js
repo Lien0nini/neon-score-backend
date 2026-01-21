@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import pg from "pg";
@@ -20,12 +20,9 @@ if (!process.env.API_KEY) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Neon uses TLS; sslmode=require in the URL is usually enough.
-  // If your host needs it explicitly, uncomment:
   // ssl: { rejectUnauthorized: false },
 });
 
-// Simple API-key auth (good enough for dev; prevents random public spam)
 function requireApiKey(req, res, next) {
   const key = req.header("x-api-key");
   if (!key || key !== process.env.API_KEY) {
@@ -53,7 +50,22 @@ app.post("/round-score", requireApiKey, async (req, res) => {
       confidence = null,
       passed = null,
       meta = null,
+
+      // ✅ NEW: final recognized text from Unity
+      recognizedText = null,
     } = req.body ?? {};
+
+    // ✅ Debug: confirm backend receives it
+    console.log("ROUND SCORE BODY:", {
+      userId,
+      sessionId,
+      roundIndex,
+      score,
+      confidence,
+      passed,
+      recognizedText,
+      meta,
+    });
 
     if (typeof userId !== "string" || userId.trim().length === 0) {
       return res.status(400).json({ error: "userId is required" });
@@ -63,10 +75,19 @@ app.post("/round-score", requireApiKey, async (req, res) => {
     }
 
     const result = await pool.query(
-      `insert into round_scores (user_id, session_id, round_index, score, confidence, passed, meta)
-       values ($1,$2,$3,$4,$5,$6,$7)
+      `insert into round_scores (
+         user_id,
+         session_id,
+         round_index,
+         score,
+         confidence,
+         passed,
+         meta,
+         recognized_text
+       )
+       values ($1,$2,$3,$4,$5,$6,$7,$8)
        returning id, created_at`,
-      [userId, sessionId, roundIndex, score, confidence, passed, meta]
+      [userId, sessionId, roundIndex, score, confidence, passed, meta, recognizedText]
     );
 
     res.json({ ok: true, ...result.rows[0] });
